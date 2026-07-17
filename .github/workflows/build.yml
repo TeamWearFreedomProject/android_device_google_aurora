@@ -1,0 +1,44 @@
+name: Build LineageOS
+
+on:
+  push:
+    branches: [ lineage-22.2 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex g++ gawk gcc git gnupg gperf grep gzip imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev libc6-dev libgl1-mesa-dev libx11-dev libxml2 libxml2-utils lz4 make openjdk-11-jdk openssh-client patch patchelf perl pkg-config python3 rsync schedtool squashfs-tools ssh strace tar unzip wget x11proto-core-dev xsltproc zip zlib1g-dev
+      
+      - name: Setup build environment
+        run: |
+          mkdir -p ~/android/lineage
+          cd ~/android/lineage
+          repo init -u https://github.com/LineageOS/android.git -b lineage-22.2 --git-lfs
+          
+      - name: Add device tree
+        run: |
+          cd ~/android/lineage
+          cp -r ${{ github.workspace }} .repo/manifests/device/google/aurora
+          
+      - name: Build
+        run: |
+          cd ~/android/lineage
+          source build/envsetup.sh
+          lunch lineage_aurora-user
+          make -j$(nproc) bacon 2>&1 | tee build.log
+          
+      - name: Upload artifacts
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: lineage-build
+          path: ~/android/lineage/out/target/product/aurora/
+          retention-days: 30
